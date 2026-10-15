@@ -4,3 +4,4 @@ smartsheet-python-sdk>=2.101.0
 matplotlib>=3.3.0
 six>=1.15.0
 python-dotenv>=0.15.0
+imageio>=2.9.0

@@ -4,6 +4,12 @@ from task import Task # task.pyからTaskクラスをインポート
 import csv # csvモジュールをインポート
 
 class TaskAssignment: # タスク割り当てクラス
+    @staticmethod
+    def _safe_csv_value(value):
+        if isinstance(value, str) and value.lstrip(" \t\r\n").startswith(("=", "+", "-", "@")):
+            return "'" + value
+        return value
+
     def __init__(self, project: Project, task: Task, member: Member, solution: int, constraint_violations: list, ga_parameters: list): # コンストラクタ
         self.project_id = project.id # プロジェクトID
         self.project_name = project.name # プロジェクト名
@@ -62,4 +68,4 @@ class TaskAssignment: # タスク割り当てクラス
             else:
                 row_data += [None, None, None, None, None]
 
-            csv_writer.writerow(row_data)  # データを出力
+            csv_writer.writerow([self._safe_csv_value(value) for value in row_data])

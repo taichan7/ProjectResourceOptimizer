@@ -8,8 +8,14 @@ import re  # 正規表現を使用するために必要
 
 
 class SmartsheetHandler: # SmartsheetHandlerクラス
-    def __init__(self, api_key): # コンストラクタ
+    def __init__(self, api_key, *, allow_writes=False): # コンストラクタ
         self.smartsheet_client = smartsheet.Smartsheet(api_key) # Smartsheetクライアントを作成
+        self.smartsheet_client.errors_as_exceptions(True)
+        self.allow_writes = allow_writes
+
+    def _require_writes(self):
+        if not self.allow_writes:
+            raise PermissionError("Smartsheet writes are disabled; explicitly enable them only for confirmed test destinations.")
 
     def read_projects_tasks_from_sheet(self, sheet_id) -> List[Project]: # Smartsheetからプロジェクトとタスクを読み込むメソッド
         sheet = self.smartsheet_client.Sheets.get_sheet(sheet_id)  # Smartsheetからシートを取得
@@ -67,16 +73,27 @@ class SmartsheetHandler: # SmartsheetHandlerクラス
         return list(members_dict.values())  # メンバーのリストを返す
 
     def write_data_to_sheet(self, sheet_id, task_assignments): # Smartsheetにデータを書き込むメソッド
+        self._require_writes()
         # Initialize the Smartsheet client
         sheet = self.smartsheet_client.Sheets.get_sheet(sheet_id) # Smartsheetからシートを取得
 
-        # Delete all rows in the sheet
+        # Keep the original rows until the replacement has been validated and added.
         row_ids = [row.id for row in sheet.rows] # シートのすべての行のIDを取得
-        if row_ids: # 行のIDが存在するか確認
-            self.smartsheet_client.Sheets.delete_rows(sheet_id, row_ids) # シートから行を削除
 
         # Set the column names
         column_map = {column.title: column.id for column in sheet.columns} # カラム名とカラムIDの辞書を作成
+        required_columns = {
+            "Solution", "Population Size", "Num Generations", "Crossover Prob",
+            "Crossover Type", "Mutation Prob", "Indpb", "Mutation Type",
+            "Selection Type", "Objective Weights", "Constraint Weights",
+            "Constraint Violations", "Project ID", "Project Name", "Task ID",
+            "Task Name", "Start Date", "End Date", "Duration", "Budget",
+            "Required Skills", "Prerequisite Tasks", "Member ID", "Member Name",
+            "Member Skills", "Member Cost", "Actual Cost",
+        }
+        missing = required_columns - column_map.keys()
+        if missing:
+            raise ValueError("Output sheet is missing required columns: " + ", ".join(sorted(missing)))
 
         # Create new rows
         new_rows = [] # 空のリストを作成
@@ -86,7 +103,6 @@ class SmartsheetHandler: # SmartsheetHandlerクラス
             actual_cost = assignment.get_actual_cost() # 実際のコストを取得
             ga_parameters_values = assignment.get_ga_parameters_values() # GAパラメータの値を取得
 
-            new_row = smartsheet.models.Row() # Use smartsheet.models.Row() instead of sheet.models.Row()
             new_row = smartsheet.models.Row({"toBottom": True})  # 行を作成
             new_row.cells = [
                 smartsheet.models.Cell({"columnId": column_map["Solution"], "value": assignment.solution}),
@@ -121,9 +137,14 @@ class SmartsheetHandler: # SmartsheetHandlerクラス
             new_rows.append(new_row) # リストに追加
 
         # Add rows to the sheet
+        if not new_rows:
+            raise ValueError("Refusing to replace a sheet with empty output.")
         self.smartsheet_client.Sheets.add_rows(sheet_id, new_rows)  # シートに行を追加
+        if row_ids:
+            self.smartsheet_client.Sheets.delete_rows(sheet_id, row_ids)
 
     def copy_and_rename_sheet(self, original_sheet_id, set_name, folder_id):
+        self._require_writes()
         # 元のシート情報を取得
         # original_sheet = self.smartsheet_client.Sheets.get_sheet(original_sheet_id)
 
@@ -145,4 +166,3 @@ class SmartsheetHandler: # SmartsheetHandlerクラス
         new_sheet = response.result
             
         return new_sheet
-

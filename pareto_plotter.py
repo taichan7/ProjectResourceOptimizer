@@ -5,6 +5,8 @@ import matplotlib.patches as mpatches # グラフの凡例を作成するため�
 import numpy as np # 数値計算を行うためのモジュール
 import imageio # 画像を扱うためのモジュール
 
+PLOT_STYLE = "seaborn-v0_8-darkgrid" if "seaborn-v0_8-darkgrid" in plt.style.available else "seaborn-darkgrid"
+
 class ParetoPlotter: # ParetoPlotterクラスの定義
     def __init__(self, gen_interval, max_individuals): # ParetoPlotterクラスのコンストラクタ
         self.gen_interval = gen_interval # 世代間隔
@@ -85,7 +87,7 @@ class ParetoPlotter: # ParetoPlotterクラスの定義
         if not os.path.exists(output_dir): # 出力先のディレクトリが存在しない場合
             os.makedirs(output_dir) # ディレクトリを作成
 
-        plt.style.use("seaborn-darkgrid") # グラフのスタイルを指定
+        plt.style.use(PLOT_STYLE) # グラフのスタイルを指定
 
         # all_fitness_values = [ind.fitness.values for individuals in all_individuals_by_generation for ind in individuals] # 全ての個体の目的関数の値を取得
         all_fitness_values = [ind.original_objective_values for individuals in all_individuals_by_generation for ind in individuals]  # 全ての個体のペナルティ加算前の目的関数の値を取得
@@ -126,7 +128,7 @@ class ParetoPlotter: # ParetoPlotterクラスの定義
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
-        plt.style.use("seaborn-darkgrid")
+        plt.style.use(PLOT_STYLE)
 
         all_fitness_values = [ind.original_objective_values for individuals in all_individuals_by_generation for ind in individuals]
         all_x_values = [x for x, y in all_fitness_values]
@@ -171,7 +173,7 @@ class ParetoPlotter: # ParetoPlotterクラスの定義
         # グラデーションの棒を修正
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cbar = plt.colorbar(sm, ticks=np.linspace(0, num_gen, min(6, cmap.N)), boundaries=np.arange(-0.5, num_gen + 1.5), format='%1i')
+        cbar = plt.colorbar(sm, ax=ax, ticks=np.linspace(0, num_gen, min(6, cmap.N)), boundaries=np.arange(-0.5, num_gen + 1.5), format='%1i')
         cbar.set_label('Generation')
 
         plt.savefig(os.path.join(output_dir, "pareto_front_all_generations.png"))

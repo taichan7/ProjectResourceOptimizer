@@ -9,8 +9,13 @@ from deap import tools # deapモジュールからtoolsをインポート
 import os # osモジュールをインポート
 import csv # csvモジュールをインポート
 import numpy as np # NumPyをインポート
+import argparse
 
-def main(): # メイン関数
+def main(argv=None): # メイン関数
+    parser = argparse.ArgumentParser(description="Run the research optimizer with read-only Smartsheet access by default.")
+    parser.add_argument("--allow-smartsheet-writes", action="store_true",
+                        help="Allow copying and replacing output sheets in the configured test folder.")
+    args = parser.parse_args(argv)
 
     # # テストデータのパラメータ設定
     # num_projects = 5 # プロジェクト数
@@ -28,8 +33,11 @@ def main(): # メイン関数
     # members = TestDataGenerator.read_members_from_csv(members_csv_file)  # メンバーを生成
 
     params = Parameters() # パラメータクラスのインスタンスを作成
+    params.validate_smartsheet_config(allow_writes=args.allow_smartsheet_writes)
+    if not args.allow_smartsheet_writes:
+        print("Smartsheet read-only mode: inputs are read from the API; results are saved locally without remote writes.")
     # 実験のベースディレクトリを作成
-    base_dir = os.path.join("..", "results", params.timestamp_str) # タイムスタンプのサブディレクトリを作成
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results", params.timestamp_str)
     os.makedirs(base_dir, exist_ok=True) # ディレクトリを作成
     # 各実験のデータおよびサマリーCSVを格納するディレクトリ
     summary_csv_dir = base_dir  # サマリーCSVを格納するディレクトリ
@@ -42,7 +50,7 @@ def main(): # メイン関数
     folder_id = params.folder_id  # フォルダID
 
     # SmartsheetHandlerクラスのインスタンスを作成します。
-    smartsheet_handler = SmartsheetHandler(api_key) # SmartsheetHandlerクラスのインスタンスを作成
+    smartsheet_handler = SmartsheetHandler(api_key, allow_writes=args.allow_smartsheet_writes)
     # read_data_from_sheetメソッドでプロジェクトとメンバーを読み込みます。
     projects = smartsheet_handler.read_projects_tasks_from_sheet(projects_tasks_sheet_id) # プロジェクトとタスクを読み込み
     members = smartsheet_handler.read_members_from_sheet(members_sheet_id) # メンバーを読み込み
@@ -194,12 +202,9 @@ def main(): # メイン関数
         writer.write_violation_details(details_csv_file, gen_interval, set_name)
         writer.write_violation_details(summary_details_csv_file, gen_interval, set_name)
 
-        # オリジナルのシートをコピーして新しい名前を付ける
-        new_sheet = smartsheet_handler.copy_and_rename_sheet(resource_optimizer_sheet_id, set_name, folder_id)
-        # 新しいシートIDを取得
-        new_sheet_id = new_sheet.id
-        # 新しいシートにデータを書き込む
-        smartsheet_handler.write_data_to_sheet(new_sheet_id, all_best_solutions)  # タスク割り当てをシートに書き込み
+        if args.allow_smartsheet_writes:
+            new_sheet = smartsheet_handler.copy_and_rename_sheet(resource_optimizer_sheet_id, set_name, folder_id)
+            smartsheet_handler.write_data_to_sheet(new_sheet.id, all_best_solutions)
 
         output_dir = images_dir # 出力する画像を格納するフォルダを指定します。
         gen_interval = 10 # 画像を出力する世代の間隔を指定します。

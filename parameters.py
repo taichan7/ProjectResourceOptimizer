@@ -2,13 +2,14 @@ from deap import tools
 from itertools import product
 import datetime # datetimeモジュールをインポート
 import os  # osモジュールをインポート
-import os
+from pathlib import Path
+import re
 from dotenv import load_dotenv
 
 class Parameters:
     def __init__(self):
         # .envファイルから環境変数を読み込む
-        load_dotenv()
+        load_dotenv(Path(__file__).with_name(".env"))
 
         # 現在の日時を取得してタイムスタンプを作成
         now = datetime.datetime.now()
@@ -44,6 +45,9 @@ class Parameters:
 
         # 選択するプロジェクト
         selected_project = os.getenv("SELECTED_PROJECT", "project4")
+        if selected_project not in self.projects_info:
+            raise ValueError("SELECTED_PROJECT must be project1, project2, project3 or project4.")
+        self.selected_project = selected_project
 
         # APIキーとシートIDを設定
         self.api_key = os.getenv("SMARTSHEET_API_KEY", "")
@@ -135,3 +139,19 @@ class Parameters:
             for count, (pop_size, cx_prob, mut_prob, n_gen, cx_type, indpb, objw, consw, scale) in 
             enumerate(product(population_sizes, crossover_probs, mutation_probs, num_generations, crossover_types, indpb_values, objective_weights_values, constraint_weights_values, scaling_factor_f2_values), 1)
         }
+
+    def validate_smartsheet_config(self, *, allow_writes=False):
+        if not self.api_key.strip() or self.api_key == "your_api_key_here":
+            raise ValueError("Set SMARTSHEET_API_KEY locally; do not use the example placeholder.")
+        prefix = self.selected_project.upper()
+        fields = {
+            f"{prefix}_PROJECTS_TASKS_SHEET_ID": self.projects_tasks_sheet_id,
+            f"{prefix}_MEMBERS_SHEET_ID": self.members_sheet_id,
+        }
+        if allow_writes:
+            fields[f"{prefix}_RESOURCE_OPTIMIZER_SHEET_ID"] = self.resource_optimizer_sheet_id
+            fields[f"{prefix}_FOLDER_ID"] = self.folder_id
+        invalid = [name for name, value in fields.items()
+                   if not re.fullmatch(r"[0-9]+", value) or int(value) == 0]
+        if invalid:
+            raise ValueError("Set valid positive numeric IDs for: " + ", ".join(invalid))
